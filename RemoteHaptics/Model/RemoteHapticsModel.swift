@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 final class RemoteHapticsModel: ObservableObject {
@@ -11,6 +12,24 @@ final class RemoteHapticsModel: ObservableObject {
         case connected
     }
 
+    enum InputMode: String, CaseIterable, Identifiable {
+        case relative
+        case absolute
+        var id: String { rawValue }
+    }
+
+    struct StreamQualityPreset {
+        let label: String
+        let w: Int
+        let q: Int
+    }
+
+    static let qualityPresets = [
+        StreamQualityPreset(label: "低", w: 960, q: 55),
+        StreamQualityPreset(label: "中", w: 1280, q: 60),
+        StreamQualityPreset(label: "高", w: 1600, q: 70)
+    ]
+
     @Published var connectionState: ConnectionState = .disconnected
     @Published var discoveredServers: [DiscoveredServer] = []
     @Published var connectedHost = ""
@@ -18,19 +37,38 @@ final class RemoteHapticsModel: ObservableObject {
     @Published var lastMessage = ""
     @Published var isShiftActive = false
 
+    // 画面中継
+    @Published var inputMode: InputMode = .relative
+    @Published var screenImage: UIImage?
+    @Published var screenSize: CGSize = .zero
+    @Published var frameSize: CGSize = .zero
+    @Published var isStreaming = false
+
+    // コマンド実行
+    @Published var commandHistory: [CommandEntry] = []
+
     @AppStorage("rh_pin") var pin = "1234"
     @AppStorage("rh_sensitivity") var sensitivity: Double = 1.0
     @AppStorage("rh_haptics") var hapticsEnabled = true
     @AppStorage("rh_autoReconnect") var autoReconnect = true
     @AppStorage("rh_autoConnect") var autoConnect = true
+    @AppStorage("rh_quality") var streamQualityIndex = 1
+    @AppStorage("rh_dragDelay") var dragDelay: Double = 0.5
 
     var effectiveShift: Bool { isShiftActive }
+
+    var streamQuality: StreamQualityPreset {
+        RemoteHapticsModel.qualityPresets.indices.contains(streamQualityIndex)
+            ? RemoteHapticsModel.qualityPresets[streamQualityIndex]
+            : RemoteHapticsModel.qualityPresets[1]
+    }
 
     private let discovery = BonjourDiscovery()
     private var client: InputClient?
     private var reconnectTask: Task<Void, Never>?
     private var scrollAccum: CGFloat = 0
     private var hasShownDiscoveryError = false
+    private var pendingCmd = ""
 
     private init() {
         discovery.onServers = { [weak self] servers in
@@ -75,6 +113,26 @@ final class RemoteHapticsModel: ObservableObject {
                 self?.scheduleReconnect()
             }
         }
+        newClient.onStreamMeta = { [weak self] meta in
+            Task { @MainActor in
+                guard let self else { return }
+                self.screenSize = CGSize(width: CGFloat(meta.screenW), height: CGFloat(meta.screenH))
+                self.frameSize = CGSize(width: CGFloat(meta.frameW), height: CGFloat(meta.frameH))
+            }
+        }
+        newClient.onScreenFrame = { [weak self] data in
+            guard let image = UIImage(data: data) else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                self.screenImage = image
+                self.frameSize = image.size
+            }
+        }
+        newClient.onExecResult = { [weak self] code, out in
+            Task { @MainActor in
+                self?.appendCommandResult(cmd: self?.pendingCmd ?? "", code: code, output: out)
+            }
+        }
         client = newClient
         newClient.connect(host: trimmed, port: port, pin: pin)
         lastMessage = ""
@@ -85,6 +143,8 @@ final class RemoteHapticsModel: ObservableObject {
         client?.disconnect()
         client = nil
         connectionState = .disconnected
+        isStreaming = false
+        screenImage = nil
         lastMessage = "切断しました"
     }
 
@@ -102,6 +162,8 @@ final class RemoteHapticsModel: ObservableObject {
                 lastMessage = "接続が切れました"
             }
             connectionState = .disconnected
+            isStreaming = false
+            screenImage = nil
         }
     }
 
@@ -162,6 +224,67 @@ final class RemoteHapticsModel: ObservableObject {
         }
     }
 
+    func moveto(x: Int, y: Int) {
+        guard connectionState == .connected, screenSize.width > 0, screenSize.height > 0 else { return }
+        client?.send(InputMessage.moveto(x: x, y: y))
+    }
+
+    // MARK: - Screen Streaming
+
+    func setInputMode(_ mode: InputMode) {
+        inputMode = mode
+        if mode == .absolute {
+            startStream()
+        } else {
+            stopStream()
+        }
+    }
+
+    func startStream() {
+        guard connectionState == .connected, !isStreaming else { return }
+        let preset = streamQuality
+        client?.setStream(on: true, w: preset.w, q: preset.q)
+        isStreaming = true
+    }
+
+    func stopStream() {
+        guard isStreaming else { return }
+        client?.setStream(on: false, w: 0, q: 0)
+        isStreaming = false
+        screenImage = nil
+    }
+
+    func applyStreamQualityChange() {
+        guard isStreaming, inputMode == .absolute else { return }
+        stopStream()
+        startStream()
+    }
+
+    // MARK: - Command
+
+    func runCommand(_ cmd: String) {
+        guard connectionState == .connected else {
+            lastMessage = "未接続"
+            return
+        }
+        let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        pendingCmd = trimmed
+        client?.execCommand(trimmed)
+    }
+
+    func clearCommandHistory() {
+        commandHistory.removeAll()
+    }
+
+    private func appendCommandResult(cmd: String, code: Int, output: String) {
+        let entry = CommandEntry(cmd: cmd, code: code, output: output, date: Date())
+        commandHistory.append(entry)
+        if commandHistory.count > 50 {
+            commandHistory.removeFirst(commandHistory.count - 50)
+        }
+    }
+
     // MARK: - Keyboard
 
     func keyDown(_ def: KeyDef) {
@@ -173,7 +296,7 @@ final class RemoteHapticsModel: ObservableObject {
             return
         }
         client?.send(InputMessage.key(code: def.code, down: true))
-        InputHaptics.keyPress()
+        InputHaptics.keyPress(strong: def.id == "space" || def.id == "enter" || def.id == "backspace")
     }
 
     func keyUp(_ def: KeyDef) {
@@ -189,4 +312,13 @@ final class RemoteHapticsModel: ObservableObject {
     private func syncShift() {
         client?.send(InputMessage.key(code: "KEY_LEFTSHIFT", down: isShiftActive))
     }
+}
+
+/// コマンド実行の履歴 1 件。
+struct CommandEntry: Identifiable, Equatable {
+    let id = UUID()
+    let cmd: String
+    let code: Int
+    let output: String
+    let date: Date
 }

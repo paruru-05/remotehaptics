@@ -13,6 +13,12 @@ final class InputClient {
     var onAuthError: ((String) -> Void)?
     /// 接続中に意図せず切断された場合に呼ばれる (自動再接続用)。
     var onUnexpectedDrop: (() -> Void)?
+    /// 画面情報が届いたときに呼ばれる。
+    var onStreamMeta: ((StreamMeta) -> Void)?
+    /// JPEG フレームが届いたときに呼ばれる。
+    var onScreenFrame: ((Data) -> Void)?
+    /// コマンド実行結果が届いたときに呼ばれる。
+    var onExecResult: ((Int, String) -> Void)?
 
     private(set) var state: State = .disconnected
 
@@ -59,6 +65,18 @@ final class InputClient {
         task.send(.data(data)) { _ in }
     }
 
+    func moveto(x: Int, y: Int) {
+        send(InputMessage.moveto(x: x, y: y))
+    }
+
+    func setStream(on: Bool, w: Int = 1280, q: Int = 60) {
+        send(InputMessage.stream(on: on, w: w, q: q))
+    }
+
+    func execCommand(_ cmd: String) {
+        send(InputMessage.exec(cmd: cmd))
+    }
+
     // MARK: - private
 
     private func sendRaw(_ dict: [String: Any]) {
@@ -102,15 +120,17 @@ final class InputClient {
     }
 
     private func handle(_ message: URLSessionWebSocketTask.Message) {
-        let text: String
         switch message {
         case .string(let s):
-            text = s
+            handleText(s)
         case .data(let d):
-            text = String(data: d, encoding: .utf8) ?? ""
+            onScreenFrame?(d)
         @unknown default:
-            return
+            break
         }
+    }
+
+    private func handleText(_ text: String) {
         guard let data = text.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let t = obj["t"] as? String else { return }
@@ -127,6 +147,14 @@ final class InputClient {
             task = nil
             isReceiving = false
             setState(.disconnected)
+        case "stream_meta":
+            if let meta = StreamMeta(obj) {
+                onStreamMeta?(meta)
+            }
+        case "exec_out":
+            let code = obj["code"] as? Int ?? -1
+            let out = obj["out"] as? String ?? ""
+            onExecResult?(code, out)
         default:
             break
         }

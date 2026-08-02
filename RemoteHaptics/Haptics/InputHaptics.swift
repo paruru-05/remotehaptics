@@ -37,23 +37,46 @@ final class InputHaptics {
     }
 
     private func play(intensity: Float, sharpness: Float) {
+        playPattern([
+            CHHapticEvent(
+                eventType: .hapticTransient,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: sharpness)
+                ],
+                relativeTime: 0
+            )
+        ])
+    }
+
+    /// 2 連パルスの触覚 (キー入力など)。
+    private func playDouble(intensity: Float, sharpness: Float, gap: TimeInterval) {
+        let p: (Float, Float, TimeInterval) -> CHHapticEvent = { i, s, t in
+            CHHapticEvent(
+                eventType: .hapticTransient,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: i),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: s)
+                ],
+                relativeTime: t
+            )
+        }
+        playPattern([
+            p(intensity, sharpness, 0),
+            p(intensity, sharpness, gap)
+        ])
+    }
+
+    private func playPattern(_ events: [CHHapticEvent]) {
         guard isEnabled else { return }
         ensureSetup()
         guard let engine else { return }
-        let event = CHHapticEvent(
-            eventType: .hapticTransient,
-            parameters: [
-                CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
-                CHHapticEventParameter(parameterID: .hapticSharpness, value: sharpness)
-            ],
-            relativeTime: 0
-        )
         do {
-            let pattern = try CHHapticPattern(events: [event], parameters: [])
+            let pattern = try CHHapticPattern(events: events, parameters: [])
             let player = try engine.makePlayer(with: pattern)
             transientPlayer = player
             try player.start(atTime: CHHapticTimeImmediate)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
                 if self?.transientPlayer === player {
                     self?.transientPlayer = nil
                 }
@@ -73,9 +96,24 @@ final class InputHaptics {
         shared.play(intensity: 0.65, sharpness: 0.35)
     }
 
-    /// キー入力: 軽い一瞬のフィードバック
-    static func keyPress() {
-        shared.play(intensity: 0.22, sharpness: 0.5)
+    /// キー入力: 強めの 2 連パルス。
+    /// `strong` は Space / Enter / Backspace など多用するキー。
+    static func keyPress(strong: Bool = false) {
+        if strong {
+            shared.playDouble(intensity: 0.85, sharpness: 0.8, gap: 0.05)
+        } else {
+            shared.playDouble(intensity: 0.5, sharpness: 0.6, gap: 0.045)
+        }
+    }
+
+    /// ドラッグ開始: 強い 2 連パルス
+    static func dragStart() {
+        shared.playDouble(intensity: 1.0, sharpness: 0.9, gap: 0.03)
+    }
+
+    /// ドラッグ終了: 軽い一発
+    static func dragEnd() {
+        shared.play(intensity: 0.5, sharpness: 0.5)
     }
 
     /// モディファイア押下: 中程度

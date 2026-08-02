@@ -11,6 +11,8 @@ struct RootView: View {
                         .tabItem { Label("トラックパッド", systemImage: "rectangle.and.hand.point.up.left") }
                     KeyboardView()
                         .tabItem { Label("キーボード", systemImage: "keyboard") }
+                    CommandView()
+                        .tabItem { Label("コマンド", systemImage: "terminal") }
                     SettingsView()
                         .tabItem { Label("設定", systemImage: "gearshape") }
                 }

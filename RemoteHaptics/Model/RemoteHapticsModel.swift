@@ -217,9 +217,12 @@ final class RemoteHapticsModel: ObservableObject {
         guard connectionState == .connected else { return }
         client?.send(InputMessage.click(button: button, down: down))
         if down {
-            if button == "left" {
+            switch button {
+            case "left":
                 InputHaptics.leftClick()
-            } else {
+            case "middle":
+                InputHaptics.middleClick()
+            default:
                 InputHaptics.rightClick()
             }
         }

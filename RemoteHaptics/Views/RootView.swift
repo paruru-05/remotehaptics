@@ -9,6 +9,8 @@ struct RootView: View {
                 TabView {
                     TrackpadView()
                         .tabItem { Label("トラックパッド", systemImage: "rectangle.and.hand.point.up.left") }
+                    ScreenRelayView()
+                        .tabItem { Label("中継", systemImage: "display") }
                     KeyboardView()
                         .tabItem { Label("キーボード", systemImage: "keyboard") }
                     CommandView()

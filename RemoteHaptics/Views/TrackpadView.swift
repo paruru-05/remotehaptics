@@ -51,8 +51,8 @@ struct TrackpadView: View {
 
     private var guideText: some View {
         Text(model.inputMode == .absolute
-             ? "1本指=移動 / タップで拡大鏡→クリック / 静止=ドラッグ / 2本指=スクロール / 2本指タップ=右"
-             : "1本指=移動 / 静止=ドラッグ / タップ=左 / 2本指=スクロール / 2本指タップ=右")
+             ? "1本指=移動 / タップ=拡大鏡+左 / 静止=ドラッグ\n2本指=スクロール / 2本指タップ=右 / 3本指タップ=中"
+             : "1本指=移動 / 静止=ドラッグ / タップ=左\n2本指=スクロール / 2本指タップ=右 / 3本指タップ=中")
             .font(.caption)
             .foregroundStyle(.tertiary)
             .multilineTextAlignment(.center)
@@ -117,6 +117,7 @@ final class TrackpadUIView: UIView {
     private var singleMoved = false
     private var twoFingerStart: CFTimeInterval = 0
     private var twoFingerMoved = false
+    private var maxFingers = 0
 
     private let loupeSize: CGFloat = 110
     private let loupe: UIView = UIView()
@@ -151,6 +152,7 @@ final class TrackpadUIView: UIView {
                 startTime: now
             )
         }
+        maxFingers = max(maxFingers, touchDict.count)
 
         switch state {
         case .idle:
@@ -290,22 +292,29 @@ final class TrackpadUIView: UIView {
                 }
             }
             state = .idle
+            maxFingers = 0
         case .dragging:
             hideLoupe()
             if !cancelled {
                 endDrag()
             }
             state = .idle
+            maxFingers = 0
         case .twoFinger:
             hideLoupe()
             if !cancelled, touchDict.isEmpty {
                 let wasTap = !twoFingerMoved && (now - twoFingerStart) < 0.35
                 if wasTap {
-                    sendRightClick()
+                    if maxFingers >= 3 {
+                        sendMiddleClick()
+                    } else {
+                        sendRightClick()
+                    }
                 }
             }
             if touchDict.isEmpty {
                 state = .idle
+                maxFingers = 0
             }
         case .idle:
             break
@@ -345,6 +354,13 @@ final class TrackpadUIView: UIView {
         withModel { model in
             model.click(button: "right", down: true)
             model.click(button: "right", down: false)
+        }
+    }
+
+    private func sendMiddleClick() {
+        withModel { model in
+            model.click(button: "middle", down: true)
+            model.click(button: "middle", down: false)
         }
     }
 

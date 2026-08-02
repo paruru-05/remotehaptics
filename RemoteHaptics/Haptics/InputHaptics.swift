@@ -96,6 +96,11 @@ final class InputHaptics {
         shared.play(intensity: 0.65, sharpness: 0.35)
     }
 
+    /// 中クリック: 中程度の一発
+    static func middleClick() {
+        shared.play(intensity: 0.55, sharpness: 0.4)
+    }
+
     /// キー入力: 強めの単発パルス。
     /// `strong` は Space / Enter / Backspace など多用するキー。
     static func keyPress(strong: Bool = false) {

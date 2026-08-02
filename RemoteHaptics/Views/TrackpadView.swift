@@ -397,7 +397,7 @@ final class TrackpadUIView: UIView {
         addSubview(loupe)
     }
 
-    private func hideLoupe() {
+    fileprivate func hideLoupe() {
         loupe.isHidden = true
     }
 
@@ -430,8 +430,8 @@ final class TrackpadUIView: UIView {
 
             self.loupe.layer.contents = cg
             self.loupe.layer.contentsRect = CGRect(
-                x: clamp01(cnx - nw / 2, max: 1 - nw),
-                y: clamp01(cny - nh / 2, max: 1 - nh),
+                x: clamp01(cnx - nw / 2, upper: 1 - nw),
+                y: clamp01(cny - nh / 2, upper: 1 - nh),
                 width: min(nw, 1),
                 height: min(nh, 1)
             )
@@ -444,8 +444,8 @@ final class TrackpadUIView: UIView {
         }
     }
 
-    private func clamp01(_ v: CGFloat, max: CGFloat) -> CGFloat {
-        max > 0 ? min(max(0, v), max) : 0
+    private func clamp01(_ v: CGFloat, upper: CGFloat) -> CGFloat {
+        upper > 0 ? min(max(0, v), upper) : 0
     }
 
     private func withModel<T>(_ action: (RemoteHapticsModel) -> T) -> T? {

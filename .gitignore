@@ -11,3 +11,5 @@ RemoteHaptics/Info.plist
 # Python
 server/.venv/
 __pycache__/
+server.log
+__pycache__/

@@ -2,10 +2,11 @@
 
 import evdev
 from evdev import UInput, ecodes as e
+from evdev import AbsInfo
 
 
 class VirtualDevice:
-    def __init__(self) -> None:
+    def __init__(self, screen_size=(1920, 1080)) -> None:
         self._keyboard = UInput(
             events={e.EV_KEY: e.keys},
             name="RemoteHaptics Keyboard",
@@ -19,6 +20,18 @@ class VirtualDevice:
             name="RemoteHaptics Mouse",
             bustype=e.BUS_USB,
         )
+        self._screen_w, self._screen_h = screen_size
+        self._pointer = UInput(
+            events={
+                e.EV_KEY: [e.BTN_LEFT, e.BTN_RIGHT, e.BTN_MIDDLE],
+                e.EV_ABS: [
+                    (e.ABS_X, AbsInfo(value=0, min=0, max=max(0, self._screen_w - 1), fuzz=0, flat=0, resolution=0)),
+                    (e.ABS_Y, AbsInfo(value=0, min=0, max=max(0, self._screen_h - 1), fuzz=0, flat=0, resolution=0)),
+                ],
+            },
+            name="RemoteHaptics Pointer",
+            bustype=e.BUS_USB,
+        )
         self._held_keys = set()
 
     def move(self, dx: int, dy: int) -> None:
@@ -27,6 +40,11 @@ class VirtualDevice:
         self._mouse.write(e.EV_REL, e.REL_X, max(-32767, min(32767, dx)))
         self._mouse.write(e.EV_REL, e.REL_Y, max(-32767, min(32767, dy)))
         self._mouse.syn()
+
+    def moveto(self, x: int, y: int) -> None:
+        self._pointer.write(e.EV_ABS, e.ABS_X, max(0, min(int(x), self._screen_w - 1)))
+        self._pointer.write(e.EV_ABS, e.ABS_Y, max(0, min(int(y), self._screen_h - 1)))
+        self._pointer.syn()
 
     def scroll(self, dy: int) -> None:
         if dy == 0:
@@ -60,14 +78,16 @@ class VirtualDevice:
             except Exception:
                 pass
         self._held_keys.clear()
-        for btn in (e.BTN_LEFT, e.BTN_RIGHT, e.BTN_MIDDLE):
-            try:
-                self._mouse.write(e.EV_KEY, btn, 0)
-                self._mouse.syn()
-            except Exception:
-                pass
+        for dev in (self._mouse, self._pointer):
+            for btn in (e.BTN_LEFT, e.BTN_RIGHT, e.BTN_MIDDLE):
+                try:
+                    dev.write(e.EV_KEY, btn, 0)
+                    dev.syn()
+                except Exception:
+                    pass
 
     def close(self) -> None:
         self.release_all()
         self._keyboard.close()
         self._mouse.close()
+        self._pointer.close()

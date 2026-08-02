@@ -96,13 +96,13 @@ final class InputHaptics {
         shared.play(intensity: 0.65, sharpness: 0.35)
     }
 
-    /// キー入力: 強めの 2 連パルス。
+    /// キー入力: 強めの単発パルス。
     /// `strong` は Space / Enter / Backspace など多用するキー。
     static func keyPress(strong: Bool = false) {
         if strong {
-            shared.playDouble(intensity: 0.85, sharpness: 0.8, gap: 0.05)
+            shared.play(intensity: 0.9, sharpness: 0.75)
         } else {
-            shared.playDouble(intensity: 0.5, sharpness: 0.6, gap: 0.045)
+            shared.play(intensity: 0.6, sharpness: 0.65)
         }
     }
 

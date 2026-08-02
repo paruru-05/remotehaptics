@@ -52,7 +52,16 @@ struct SettingsView: View {
                     .onChange(of: model.streamQualityIndex) { _, _ in
                         model.applyStreamQualityChange()
                     }
-                    Text("「絶対」モードで PC 画面を配信します。高画質ほどフレームレートが下がります")
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("拡大鏡ズーム")
+                            Spacer()
+                            Text(String(format: "%.1fx", model.loupeZoom))
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $model.loupeZoom, in: 1.5...4.0, step: 0.5)
+                    }
+                    Text("「絶対」モードで PC 画面を配信します。タップ時に指の周りを拡大表示します")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -72,7 +81,7 @@ struct SettingsView: View {
 
                 Section("操作ガイド") {
                     Text("トラックパッド (相対)\n・1本指ドラッグ: カーソル移動\n・1本指静止 0.5 秒: ドラッグ開始\n・タップ: 左クリック\n・2本指ドラッグ: スクロール\n・2本指タップ: 右クリック")
-                    Text("トラックパッド (絶対)\n・PC 画面が背景に表示されます\n・指を置いた位置にカーソルが移動\n・静止 0.5 秒でドラッグ開始")
+                    Text("トラックパッド (絶対)\n・PC 画面が背景に表示されます\n・指を置いた位置にカーソルが移動\n・タップ時に指の周りを拡大表示\n・静止 0.5 秒でドラッグ開始")
                     Text("キーボード\n・キー長押しで連続入力 (PC側がリピート)\n・Shift は押している間だけ有効\n・半/全・変換・無変換・かな・英数で IME 切替")
                     Text("コマンド\n・PC で任意のコマンドを実行し結果を表示\n・実行は接続した PC 上で行われます")
                 }

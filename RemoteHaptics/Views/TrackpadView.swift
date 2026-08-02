@@ -50,7 +50,9 @@ struct TrackpadView: View {
     }
 
     private var guideText: some View {
-        Text("1本指=移動 / 静止=ドラッグ / タップ=左 / 2本指=スクロール / 2本指タップ=右")
+        Text(model.inputMode == .absolute
+             ? "1本指=移動 / タップで拡大鏡→クリック / 静止=ドラッグ / 2本指=スクロール / 2本指タップ=右"
+             : "1本指=移動 / 静止=ドラッグ / タップ=左 / 2本指=スクロール / 2本指タップ=右")
             .font(.caption)
             .foregroundStyle(.tertiary)
             .multilineTextAlignment(.center)
@@ -85,6 +87,9 @@ private struct TrackpadSurface: UIViewRepresentable {
 
     func updateUIView(_ uiView: TrackpadUIView, context: Context) {
         uiView.model = model
+        if model.inputMode != .absolute || model.screenImage == nil {
+            uiView.hideLoupe()
+        }
     }
 }
 
@@ -113,6 +118,9 @@ final class TrackpadUIView: UIView {
     private var twoFingerStart: CFTimeInterval = 0
     private var twoFingerMoved = false
 
+    private let loupeSize: CGFloat = 110
+    private let loupe: UIView = UIView()
+
     override var canBecomeFirstResponder: Bool { true }
 
     override init(frame: CGRect) {
@@ -120,6 +128,7 @@ final class TrackpadUIView: UIView {
         isMultipleTouchEnabled = true
         isUserInteractionEnabled = true
         backgroundColor = .clear
+        setupLoupe()
     }
 
     required init?(coder: NSCoder) {
@@ -151,13 +160,16 @@ final class TrackpadUIView: UIView {
             startDragTimer()
             if isAbsoluteMode, let first = touchDict.values.first {
                 sendMoveto(first.current)
+                updateLoupe(center: first.current)
             }
         case .touching:
             cancelDragTimer()
+            hideLoupe()
             enterTwoFinger(now)
         case .dragging:
             cancelDragTimer()
             endDrag()
+            hideLoupe()
             enterTwoFinger(now)
         case .twoFinger:
             break
@@ -190,6 +202,7 @@ final class TrackpadUIView: UIView {
             if isAbsoluteMode {
                 if let first = touchDict.values.first {
                     sendMoveto(first.current)
+                    updateLoupe(center: first.current)
                 }
             } else if dx != 0 || dy != 0 {
                 sendMove(dx: dx, dy: dy)
@@ -249,6 +262,7 @@ final class TrackpadUIView: UIView {
     private func dragTimerFired() {
         guard state == .touching, !singleMoved else { return }
         state = .dragging
+        hideLoupe()
         sendLeftDown()
         InputHaptics.dragStart()
     }
@@ -268,6 +282,7 @@ final class TrackpadUIView: UIView {
 
         switch prevState {
         case .touching:
+            hideLoupe()
             if !cancelled {
                 let wasTap = !singleMoved && (now - singleStartTime) < 0.35
                 if wasTap {
@@ -276,11 +291,13 @@ final class TrackpadUIView: UIView {
             }
             state = .idle
         case .dragging:
+            hideLoupe()
             if !cancelled {
                 endDrag()
             }
             state = .idle
         case .twoFinger:
+            hideLoupe()
             if !cancelled, touchDict.isEmpty {
                 let wasTap = !twoFingerMoved && (now - twoFingerStart) < 0.35
                 if wasTap {
@@ -355,6 +372,80 @@ final class TrackpadUIView: UIView {
             width: w,
             height: h
         )
+    }
+
+    // MARK: - Loupe (絶対モードの拡大鏡)
+
+    private func setupLoupe() {
+        loupe.frame = CGRect(x: 0, y: 0, width: loupeSize, height: loupeSize)
+        loupe.layer.cornerRadius = loupeSize / 2
+        loupe.clipsToBounds = true
+        loupe.layer.borderColor = UIColor.systemBlue.cgColor
+        loupe.layer.borderWidth = 2.5
+        loupe.layer.shadowColor = UIColor.black.cgColor
+        loupe.layer.shadowOpacity = 0.35
+        loupe.layer.shadowRadius = 8
+        loupe.layer.shadowOffset = CGSize(width: 0, height: 3)
+        loupe.isHidden = true
+
+        let crossH = UIView(frame: CGRect(x: 0, y: loupeSize / 2 - 1, width: loupeSize, height: 2))
+        crossH.backgroundColor = UIColor.white.withAlphaComponent(0.75)
+        let crossV = UIView(frame: CGRect(x: loupeSize / 2 - 1, y: 0, width: 2, height: loupeSize))
+        crossV.backgroundColor = UIColor.white.withAlphaComponent(0.75)
+        loupe.addSubview(crossH)
+        loupe.addSubview(crossV)
+        addSubview(loupe)
+    }
+
+    private func hideLoupe() {
+        loupe.isHidden = true
+    }
+
+    /// 指の周囲を拡大表示して精密クリックを支援する。
+    private func updateLoupe(center: CGPoint) {
+        withModel { model in
+            guard let cg = model.screenImage?.cgImage else {
+                self.hideLoupe()
+                return
+            }
+            let frameW = model.frameSize.width
+            let frameH = model.frameSize.height
+            guard frameW > 0, frameH > 0 else {
+                self.hideLoupe()
+                return
+            }
+            let fit = self.aspectFitRect(imageSize: model.frameSize, in: self.bounds)
+            guard fit.contains(center) else {
+                self.hideLoupe()
+                return
+            }
+
+            let zoom = CGFloat(model.loupeZoom)
+            let scalePxToPt = fit.width / frameW
+            let visiblePx = self.loupeSize / (zoom * scalePxToPt)
+            let cnx = (center.x - fit.minX) / fit.width
+            let cny = (center.y - fit.minY) / fit.height
+            let nw = visiblePx / frameW
+            let nh = visiblePx / frameH
+
+            self.loupe.layer.contents = cg
+            self.loupe.layer.contentsRect = CGRect(
+                x: clamp01(cnx - nw / 2, max: 1 - nw),
+                y: clamp01(cny - nh / 2, max: 1 - nh),
+                width: min(nw, 1),
+                height: min(nh, 1)
+            )
+
+            var centerPt = CGPoint(x: center.x - self.loupeSize / 2 - 20, y: center.y - self.loupeSize / 2 - 20)
+            centerPt.x = min(max(centerPt.x, self.loupeSize / 2), self.bounds.width - self.loupeSize / 2)
+            centerPt.y = min(max(centerPt.y, self.loupeSize / 2), self.bounds.height - self.loupeSize / 2)
+            self.loupe.center = centerPt
+            self.loupe.isHidden = false
+        }
+    }
+
+    private func clamp01(_ v: CGFloat, max: CGFloat) -> CGFloat {
+        max > 0 ? min(max(0, v), max) : 0
     }
 
     private func withModel<T>(_ action: (RemoteHapticsModel) -> T) -> T? {

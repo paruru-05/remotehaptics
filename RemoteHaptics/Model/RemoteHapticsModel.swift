@@ -54,6 +54,7 @@ final class RemoteHapticsModel: ObservableObject {
     @AppStorage("rh_autoConnect") var autoConnect = true
     @AppStorage("rh_quality") var streamQualityIndex = 1
     @AppStorage("rh_dragDelay") var dragDelay: Double = 0.5
+    @AppStorage("rh_loupeZoom") var loupeZoom: Double = 2.5
 
     var effectiveShift: Bool { isShiftActive }
 

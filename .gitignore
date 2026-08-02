@@ -1,0 +1,13 @@
+.DS_Store
+*.xcuserstate
+xcuserdata/
+
+# 生成物
+build/
+*.ipa
+RemoteHaptics.xcodeproj/
+RemoteHaptics/Info.plist
+
+# Python
+server/.venv/
+__pycache__/

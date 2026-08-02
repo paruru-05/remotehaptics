@@ -56,7 +56,7 @@ final class BonjourDiscovery {
         let current = Set(servers.keys)
         var seen = Set<String>()
         for result in results {
-            let name = result.endpoint.name ?? result.endpoint.debugDescription
+            let name = result.endpoint.endpointName ?? result.endpoint.debugDescription
             seen.insert(name)
             if !servers.keys.contains(name) {
                 resolve(name: name, endpoint: result.endpoint)
@@ -112,6 +112,21 @@ private extension NWEndpoint {
             return (host, port)
         }
         return nil
+    }
+
+    var endpointName: String? {
+        switch self {
+        case .service(let name, _, _, _):
+            return name
+        case .hostPort(let host, _):
+            return hostString(host)
+        case .url(let url):
+            return url.host
+        case .unix(let path):
+            return path
+        @unknown default:
+            return nil
+        }
     }
 }
 

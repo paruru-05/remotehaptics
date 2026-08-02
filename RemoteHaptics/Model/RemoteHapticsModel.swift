@@ -143,7 +143,7 @@ final class RemoteHapticsModel: ObservableObject {
         let wheel = Int(-dy * CGFloat(sensitivity))
         guard wheel != 0 else { return }
         client?.send(InputMessage.scroll(dy: wheel))
-        scrollAccum += abs(wheel)
+        scrollAccum += CGFloat(abs(wheel))
         if scrollAccum >= 10 {
             InputHaptics.scrollTick()
             scrollAccum = 0

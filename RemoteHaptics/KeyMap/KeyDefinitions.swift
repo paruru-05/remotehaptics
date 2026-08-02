@@ -39,7 +39,7 @@ struct KeyDef: Identifiable, Hashable {
 enum JISKeyboard {
     // 1 段目: 半角/全角 | 数字 | 記号 | Backspace
     static let topRow: [KeyDef] = [
-        KeyDef(id: "z_h", label: "半/全", code: "KEY_GRAVE", isSpecial: true, width: 1.6),
+        KeyDef(id: "z_h", label: "半/全", code: "KEY_GRAVE", width: 1.6, isSpecial: true),
         KeyDef.char("n1", "1", "!", "KEY_1"),
         KeyDef.char("n2", "2", "\"", "KEY_2"),
         KeyDef.char("n3", "3", "#", "KEY_3"),
@@ -76,7 +76,7 @@ enum JISKeyboard {
 
     // 3 段目: 英数 | A..L | ; | : | ]
     static let thirdRow: [KeyDef] = [
-        KeyDef(id: "eisu", label: "英数", code: "KEY_CAPSLOCK", isSpecial: true, width: 1.4),
+        KeyDef(id: "eisu", label: "英数", code: "KEY_CAPSLOCK", width: 1.4, isSpecial: true),
         KeyDef.char("a", "A", "A", "KEY_A"),
         KeyDef.char("s", "S", "S", "KEY_S"),
         KeyDef.char("d", "D", "D", "KEY_D"),

@@ -105,8 +105,10 @@ final class TrackpadUIView: UIView {
                       let info = self.touchDict[first.key],
                       !info.moved else { return }
                 self.longPressFired = true
-                self.model?.click(button: "right", down: true)
-                self.model?.click(button: "right", down: false)
+                self.withModel { model in
+                    model.click(button: "right", down: true)
+                    model.click(button: "right", down: false)
+                }
             }
         }
     }
@@ -130,11 +132,11 @@ final class TrackpadUIView: UIView {
         switch touchDict.count {
         case 1:
             if dx != 0 || dy != 0 {
-                model?.move(dx: dx, dy: dy)
+                withModel { $0.move(dx: dx, dy: dy) }
             }
         case 2:
             if dy != 0 {
-                model?.scroll(dy: dy)
+                withModel { $0.scroll(dy: dy) }
             }
         default:
             break
@@ -169,16 +171,27 @@ final class TrackpadUIView: UIView {
 
         if anyTap {
             if maxFingers == 1 {
-                model?.click(button: "left", down: true)
-                model?.click(button: "left", down: false)
+                withModel { model in
+                    model.click(button: "left", down: true)
+                    model.click(button: "left", down: false)
+                }
             } else {
-                model?.click(button: "right", down: true)
-                model?.click(button: "right", down: false)
+                withModel { model in
+                    model.click(button: "right", down: true)
+                    model.click(button: "right", down: false)
+                }
             }
         }
         if touchDict.isEmpty {
             maxFingers = 0
             longPressFired = false
+        }
+    }
+
+    private func withModel(_ action: (RemoteHapticsModel) -> Void) {
+        guard let model else { return }
+        MainActor.assumeIsolated {
+            action(model)
         }
     }
 }
